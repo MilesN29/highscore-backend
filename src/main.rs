@@ -1,15 +1,13 @@
-use actix_web::{web, App, HttpServer, middleware::Logger, Responder}; // For handling HTTP requests.
 use actix_cors::Cors; // For handling cross-origin requests.
+use actix_web::{middleware::Logger, web, App, HttpServer, Responder}; // For handling HTTP requests.
 use serde::Serialize; // For serializing structs to JSON.
-
-
 
 // define a struct for representing a high score.
 // `Serialize` allows this struct to be converted into JSON
 #[derive(Serialize)]
 struct HighScore {
     name: String, // Player's name.
-    score: u32,   // Player's score.
+    score: i32,   // Use signed integer to match Postgres' int4 type.
 }
 
 // defin an asynchronous handler function for the `/highscores` route.
@@ -34,13 +32,11 @@ async fn get_high_scores() -> impl Responder {
         }
     });
 
-    let rows = client
-        .query(
-            "SELECT name, score FROM high_scores ORDER BY score DESC LIMIT 10",
-            &[],
-        )
+    let statement = client
+        .prepare("SELECT name, score FROM high_scores ORDER BY score DESC LIMIT 10")
         .await
         .unwrap();
+    let rows = client.query(&statement, &[]).await.unwrap();
 
     let high_scores: Vec<HighScore> = rows
         .into_iter()
@@ -58,7 +54,7 @@ async fn get_high_scores() -> impl Responder {
 async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
         let cors = Cors::default()
-            .allowed_origin("http://localhost:3000") 
+            .allowed_origin("http://localhost:3000")
             .allowed_origin("https://milesn29.github.io/game")
             .allow_any_method()
             .allow_any_header()
