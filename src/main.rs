@@ -1,27 +1,59 @@
-use actix_web::{web, App, HttpServer, Responder};
-use actix_cors::Cors;
-use serde::Serialize;
+use actix_web::{web, App, HttpServer, middleware::Logger, Responder}; // For handling HTTP requests.
+use actix_cors::Cors; // For handling cross-origin requests.
+use serde::Serialize; // For serializing structs to JSON.
 
+
+
+// define a struct for representing a high score.
+// `Serialize` allows this struct to be converted into JSON
 #[derive(Serialize)]
 struct HighScore {
-    name: String,
-    score: u32,
+    name: String, // Player's name.
+    score: u32,   // Player's score.
 }
 
+// defin an asynchronous handler function for the `/highscores` route.
+// the function returns a JSON response with a list of high scores.
 async fn get_high_scores() -> impl Responder {
-    let high_scores = vec![
-        HighScore {
-            name: "Alice".to_string(),
-            score: 1000,
-        },
-        HighScore {
-            name: "Bob".to_string(),
-            score: 800,
-        },
-    ];
-    web::Json(high_scores)
+    //load enviroment variables
+    dotenv::dotenv().ok();
+
+    //get database connection string from the enviorment
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+
+    //connect to the database
+    let (client, connection) = tokio_postgres::connect(&database_url, tokio_postgres::NoTls)
+        .await
+        .unwrap();
+
+    //spawn a seperate task to manage connection
+
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            eprintln!("connection error: {}", e);
+        }
+    });
+
+    let rows = client
+        .query(
+            "SELECT name, score FROM high_scores ORDER BY score DESC LIMIT 10",
+            &[],
+        )
+        .await
+        .unwrap();
+
+    let high_scores: Vec<HighScore> = rows
+        .into_iter()
+        .map(|row| HighScore {
+            name: row.get("name"),
+            score: row.get("score"),
+        })
+        .collect();
+
+    web::Json(high_scores) // return the high scores as JSON.
 }
 
+// server is configured and started.
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
@@ -31,7 +63,8 @@ async fn main() -> std::io::Result<()> {
             .allow_any_header();
 
         App::new()
-            .wrap(cors) // Add CORS middleware
+            .wrap(Logger::default())
+            .wrap(cors)
             .route("/highscores", web::get().to(get_high_scores))
     })
     .bind(("0.0.0.0", 8080))?
