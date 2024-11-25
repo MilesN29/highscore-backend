@@ -58,9 +58,11 @@ async fn get_high_scores() -> impl Responder {
 async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
         let cors = Cors::default()
-            .allow_any_origin()
+            .allowed_origin("http://localhost:3000") 
+            .allowed_origin("https://milesn29.github.io/game")
             .allow_any_method()
-            .allow_any_header();
+            .allow_any_header()
+            .supports_credentials(); // If you're using cookies or authentication
 
         App::new()
             .wrap(Logger::default())
