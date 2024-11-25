@@ -1,4 +1,5 @@
 use actix_web::{web, App, HttpServer, Responder};
+use actix_cors::Cors;
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -24,7 +25,13 @@ async fn get_high_scores() -> impl Responder {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allow_any_method()
+            .allow_any_header();
+
         App::new()
+            .wrap(cors) // Add CORS middleware
             .route("/highscores", web::get().to(get_high_scores))
     })
     .bind(("0.0.0.0", 8080))?
